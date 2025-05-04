@@ -23,17 +23,18 @@ build/X86/gem5.opt configs/tutorial/run_spectre/two_level.py
 ## To run with different debug flags, use the --debug-flags option
 
 ```bash
-build/X86/gem5.opt --debug-flags={Flag_name} configs/tutorial/run_spectre/two_level.py
+build/X86/gem5.opt --debug-flags=Flag configs/tutorial/run_spectre/two_level.py
+build/X86/gem5.opt --debug-flags=Cache configs/tutorial/run_spectre/two_level.py
 
 ```
 
 ## other useful flags
 ```bash
-Cache, InvisiSpec, ROB, LSQ, LSQUnit
+Cache, InvisiSpec, ROB, LSQ, LSQUnit, Commit
 ```
 
 ## To enable multiple debug flags, separate them with commas
 ```bash
-build/X86/gem5.opt --debug-flags={Flag1, Flag2, etc} configs/tutorial/run_spectre/two_level.py
-Example: build/X86/gem5.opt --debug-flags={Cache, InvisiSpec, ROB} configs/tutorial/run_spectre/two_level.py
+build/X86/gem5.opt --debug-flags=Flag1,Flag2,etc configs/tutorial/run_spectre/two_level.py
+Example: build/X86/gem5.opt --debug-flags=Cache,InvisiSpec,ROB configs/tutorial/run_spectre/two_level.py
 
