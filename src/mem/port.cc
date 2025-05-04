@@ -174,6 +174,14 @@ RequestPort::getAddrRanges() const
     return _responsePort->getAddrRanges();
 }
 
+// [InvisiSpec] Request from CPU to Ruby
+// bool
+// RequestPort::sendTimingReq(PacketPtr pkt)
+// {
+//     assert(pkt->isRequest());
+//     return _responsePort->recvTimingReq(pkt);
+// }
+
 void
 RequestPort::printAddr(Addr a)
 {

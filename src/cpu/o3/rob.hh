@@ -61,6 +61,10 @@ struct BaseO3CPUParams;
 namespace o3
 {
 
+/* ============== InvisiSpec starts ============== */
+class LSQ;
+/* ============== InvisiSpec ends ============== */
+
 class CPU;
 
 struct DerivO3CPUParams;
@@ -89,6 +93,11 @@ class ROB
     /** ROB resource sharing policy for SMT mode. */
     SMTQueuePolicy robPolicy;
 
+    /* ============== InvisiSpec starts ============== */
+    // Add LSQ Pointer to ROB Class
+    LSQ *lsq;
+    /* ============== InvisiSpec ends ============== */
+
   public:
     /** ROB constructor.
      *  @param _cpu   The cpu object pointer.
@@ -102,6 +111,13 @@ class ROB
      *  @param at_ptr Pointer to the list of active threads.
      */
     void setActiveThreads(std::list<ThreadID> *at_ptr);
+
+    /* ============== InvisiSpec starts ============== */
+    void setLSQ(LSQ *lsq_ptr) { lsq = lsq_ptr; }
+    void validateSpeculativeLoad(const DynInstPtr& inst);
+    void commitSpeculativeLoad(const DynInstPtr& inst);
+    void squashSpeculativeLoads(ThreadID tid);
+    /* ============== InvisiSpec ends ============== */
 
     /** Perform sanity checks after a drain. */
     void drainSanityCheck() const;

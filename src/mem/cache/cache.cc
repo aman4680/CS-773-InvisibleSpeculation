@@ -55,6 +55,7 @@
 #include "debug/Cache.hh"
 #include "debug/CacheTags.hh"
 #include "debug/CacheVerbose.hh"
+#include "debug/InvisiSpec.hh"
 #include "enums/Clusivity.hh"
 #include "mem/cache/cache_blk.hh"
 #include "mem/cache/mshr.hh"
@@ -68,7 +69,9 @@ namespace gem5
 
 Cache::Cache(const CacheParams &p)
     : BaseCache(p, p.system->cacheLineSize()),
-      doFastWrites(true)
+      doFastWrites(true), // below 2 lines are for InvisiSpec
+      slbSize(p.slb_entries),  // Add slb_entries to params
+      enableSLB(p.enable_slb)
 {
     assert(p.tags);
     assert(p.replacement_policy);
@@ -151,6 +154,108 @@ Cache::satisfyRequest(PacketPtr pkt, CacheBlk *blk,
     }
 }
 
+
+/* ============== InvisiSpec starts ============== */
+
+void
+Cache::insertSpeculativeLoad(PacketPtr pkt)
+{
+    assert(pkt->isRead() && pkt->isSpeculativeLoad());
+    
+    if (!enableSLB) return;
+
+    DPRINTF(InvisiSpec, "Inserting speculative load [id:%d] addr=%#x\n", 
+        pkt->getId(), pkt->getAddr());
+
+    // Check SLB capacity
+    if (slb.size() >= slbSize) {
+        warn("SLB overflow - squashing");
+        DPRINTF(InvisiSpec, "SLB FULL - Squashing all entries\n");
+        for (auto& entry : slb) {
+            DPRINTFR(InvisiSpec, "  Squashing: ");
+        }
+        squashSpeculativeLoads();
+        return;
+    }
+
+    // Create new entry using the packet constructor
+    slb.emplace_back(pkt);
+    
+    // Assert that the new entry is in SLB
+    bool found = false;
+    for (auto& entry : slb) {
+        if (entry.id == pkt->getId()) {
+            found = true;
+            break;
+        }
+    }
+    assert(found && "Newly inserted SLB entry not found");
+    
+    DPRINTF(InvisiSpec, "SLB Count: %d/%d\n", slb.size(), slbSize);
+    // No need to manually copy data as it's handled in the constructor
+}
+
+void Cache::commitSpeculativeLoad(Addr addr) {
+    if (!enableSLB) return;
+
+    DPRINTF(InvisiSpec, "Committing speculative load for addr %#x\n", addr);
+
+    auto it = std::find_if(slb.begin(), slb.end(), 
+        [addr](const SpeculativeLoadEntry &e) { 
+            return e.addr == addr && e.valid; 
+        });
+
+        assert(it != slb.end() && "Committing non-existent speculative load");
+    
+        DPRINTF(InvisiSpec, "Committing: ");
+
+    if (it == slb.end()) {
+        warn("Attempted to commit non-existent speculative load");
+        return;
+    }
+
+    DPRINTF(InvisiSpec, "Found entry to commit: ");
+    // Reuse the original packet but mark as non-speculative
+    // PacketPtr pkt = it->pkt;
+    // pkt->setSpeculative(false);
+    // Reconstruct a packet from the stored RequestPtr and data
+    PacketPtr pkt = new Packet(it->req, MemCmd::ReadReq);
+    pkt->dataDynamic(it->data);  // Attach the data buffer
+    pkt->setSpeculative(false);  // Mark as non-speculative
+
+    // Validate against cache
+    CacheBlk *blk = nullptr;
+    Cycles lat;
+    PacketList writebacks;
+    access(pkt, blk, lat, writebacks);
+
+    if (memcmp(it->data, pkt->getPtr<uint8_t>(), pkt->getSize()) != 0) {
+        panic("InvisiSpec validation failed for addr %#x", addr);
+    }
+
+    slb.erase(it);  // Remove entry
+    delete pkt;  // Delete the temporary packet or remove this line if you are uncommenting the PacketPtr pkt = it->pkt; and line below it and commenting the 3 lines below it.
+}
+
+void
+Cache::squashSpeculativeLoads()
+{
+    if (!enableSLB) return;
+
+    DPRINTF(InvisiSpec, "Squashing all %d SLB entries\n", slb.size());
+    for (auto& entry : slb) {
+        DPRINTFR(InvisiSpec, "  Squashing: ");
+    }
+    slb.clear();
+    
+    assert(slb.empty() && "SLB not empty after squash");
+}
+
+/* ============== InvisiSpec ends ============== */
+
+
+
+
 /////////////////////////////////////////////////////
 //
 // Access path: requests coming in from the CPU side
@@ -161,6 +266,23 @@ bool
 Cache::access(PacketPtr pkt, CacheBlk *&blk, Cycles &lat,
               PacketList &writebacks)
 {
+    /* ============== InvisiSpec starts ============== */
+    // Modify the access method to handle speculative loads
+    if (pkt->isSpeculativeLoad() && pkt->isRead()) {
+        // InvisiSpec: Speculative loads MUST NOT interact with cache state
+        assert(!pkt->needsExposure() && "Speculative load needing exposure");
+        DPRINTF(InvisiSpec, "Cache Bypass: [id:%d] addr=%#x (speculative)\n",
+                pkt->getId(), pkt->getAddr());
+
+        insertSpeculativeLoad(pkt);  // Store in SLB only
+        pkt->makeResponse();         // Pretend it's a hit without touching cache
+        return true;                 // Bypass tag lookup, MSHRs, LRU, etc. and Treat as hit for speculative access
+    } else if (pkt->needsLoadValidation()) {
+        DPRINTF(InvisiSpec, "Cache Access: [id:%d] addr=%#x (validation)\n",
+                pkt->getId(), pkt->getAddr());
+    }
+    /* ============== InvisiSpec ends ============== */
+
 
     if (pkt->req->isUncacheable()) {
         assert(pkt->isRequest());

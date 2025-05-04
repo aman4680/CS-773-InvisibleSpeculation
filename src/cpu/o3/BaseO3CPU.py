@@ -190,4 +190,9 @@ class BaseO3CPU(BaseCPU):
     branchPred = Param.BranchPredictor(
         TournamentBP(numThreads=Parent.numThreads), "Branch Predictor"
     )
+    # needsTSO = Param.Bool(False, "Enable TSO Memory model")
+
+    # [mengjia] add configuration variables
+    simulateScheme = Param.String('UnsafeBaseline', "The scheme specificed for simulation")
     needsTSO = Param.Bool(False, "Enable TSO Memory model")
+    allowSpecBuffHit = Param.Bool(True, "Enable hit/reuse spec buffer entries")

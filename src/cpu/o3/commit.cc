@@ -732,6 +732,25 @@ Commit::propagateInterrupt()
         toIEW->commitInfo[0].interruptPending = true;
 }
 
+/* ============== InvisiSpec starts ============== */
+void
+Commit::validateSpeculativeLoad(const DynInstPtr& inst)
+{
+    ThreadID tid = inst->threadNumber;
+    Addr load_addr = inst->getSpeculativeAddr();
+    
+    DPRINTF(Commit, "[tid:%i] Validating speculative load [sn:%llu] to addr %#x\n",
+            tid, inst->seqNum, load_addr);
+            
+    // Send validation request to cache hierarchy
+    // This would interact with your SLB implementation
+    // After validation completes, clear the validation flag
+    inst->markValidation(false);
+    
+    // Update stats or counters as needed
+}
+/* ============== InvisiSpec ends ============== */
+
 void
 Commit::commit()
 {
@@ -943,6 +962,23 @@ Commit::commitInsts()
 
         ThreadID tid = head_inst->threadNumber;
 
+        /* ============== InvisiSpec starts ============== */
+        // Handle speculative load validation/exposure before normal commit
+        if (head_inst->isLoad() && head_inst->isSpeculativeLoad()) {
+            if (head_inst->requiresValidation()) {
+                validateSpeculativeLoad(head_inst);
+                // Validation may take time, break for now
+                break;
+            }
+            
+            // if (head_inst->requiresExposure()) {
+            //     exposeSpeculativeLoad(head_inst);
+            //     // Exposure may take time, break for now
+            //     break;
+            // }
+        }
+        /* ============== InvisiSpec ends ============== */
+
         assert(tid == commit_thread);
 
         DPRINTF(Commit,
@@ -1111,6 +1147,16 @@ Commit::commitHead(const DynInstPtr &head_inst, unsigned inst_num)
     assert(head_inst);
 
     ThreadID tid = head_inst->threadNumber;
+
+    /* ============== InvisiSpec starts ============== */
+    // For speculative loads, ensure they've been validated before commit
+    if (head_inst->isLoad() && head_inst->isSpeculativeLoad() && 
+        head_inst->requiresValidation()) {
+        DPRINTF(Commit, "[tid:%i] [sn:%llu] Speculative load not yet validated\n",
+                tid, head_inst->seqNum);
+        return false;
+    }
+    /* ============== InvisiSpec ends ============== */
 
     // If the instruction is not executed yet, then it will need extra
     // handling.  Signal backwards that it should be executed.

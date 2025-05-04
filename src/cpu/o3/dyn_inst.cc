@@ -61,6 +61,14 @@ DynInst::DynInst(const Arrays &arrays, const StaticInstPtr &static_inst,
       _prevDestIdx(arrays.prevDestIdx), _srcIdx(arrays.srcIdx),
       _readySrcIdx(arrays.readySrcIdx), macroop(_macroop)
 {
+    /* ============== InvisiSpec starts ============== */
+    _isSpeculative = false;
+    _needsValidation = false;
+    _needsExposure = false;
+    _epochId = 0;
+    /* ============== InvisiSpec ends ============== */
+
+
     std::fill(_readySrcIdx, _readySrcIdx + (numSrcs() + 7) / 8, 0);
 
     status.reset();
@@ -412,10 +420,12 @@ DynInst::initiateMemRead(Addr addr, unsigned size, Request::Flags flags,
                                const std::vector<bool> &byte_enable)
 {
     assert(byte_enable.size() == size);
-    return cpu->pushRequest(
+    Fault fault = cpu->pushRequest(
         dynamic_cast<DynInstPtr::PtrType>(this),
         /* ld */ true, nullptr, size, addr, flags, nullptr, nullptr,
-        byte_enable);
+        byte_enable);    
+
+    return fault;
 }
 
 Fault

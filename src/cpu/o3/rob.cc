@@ -47,6 +47,7 @@
 #include "cpu/o3/limits.hh"
 #include "debug/Fetch.hh"
 #include "debug/ROB.hh"
+#include "debug/InvisiSpec.hh"
 #include "params/BaseO3CPU.hh"
 
 namespace gem5
@@ -230,6 +231,74 @@ ROB::insertInst(const DynInstPtr &inst)
             threadEntries[tid]);
 }
 
+
+/* ============== InvisiSpec starts ============== */ 
+
+void
+ROB::validateSpeculativeLoad(const DynInstPtr& inst)
+{
+    ThreadID tid = inst->threadNumber;
+    DPRINTF(ROB, "[tid:%i] Validating speculative load [sn:%llu]\n",
+            tid, inst->seqNum);
+
+    if (!inst->isSpeculativeLoad()) {
+        return;
+    }
+
+    // Mark the load as validated using existing method
+    inst->markValidation(true);  // Instead of setValidated()
+}
+
+void
+ROB::commitSpeculativeLoad(const DynInstPtr& inst)
+{
+    assert(inst->isSpeculativeLoad() && "Committing non-speculative load");
+    assert(!inst->requiresValidation() && "Committing unvalidated load");
+    
+    DPRINTF(InvisiSpec, "ROB Commit: [sn:%llu] addr=%#x\n",
+            inst->seqNum, inst->getSpeculativeAddr());
+
+    ThreadID tid = inst->threadNumber;
+    DPRINTF(ROB, "[tid:%i] Committing speculative load [sn:%llu]\n",
+            tid, inst->seqNum);
+
+    if (!inst->isSpeculativeLoad()) {
+        return;
+    }
+
+    // Ensure the load was validated before commit
+    assert(inst->requiresValidation());  // Instead of isValidated()
+    
+    // Clear speculative state using existing method
+    inst->setSpeculative(false);  // Instead of clearSpeculative()
+}
+
+void
+ROB::squashSpeculativeLoads(ThreadID tid)
+{
+    DPRINTF(InvisiSpec, "ROB Squash: tid=%d\n", tid);
+    DPRINTF(ROB, "[tid:%i] Squashing speculative loads\n", tid);
+
+    if (instList[tid].empty()) {
+        return;
+    }
+
+    // Iterate through instructions in ROB and squash speculative loads
+    for (InstIt it = instList[tid].begin(); it != instList[tid].end(); ++it) {
+        if ((*it)->isSpeculativeLoad()) {
+            DPRINTF(ROB, "[tid:%i] Squashing speculative load [sn:%llu]\n",
+                    tid, (*it)->seqNum);
+            DPRINTF(InvisiSpec, "  Squashing: [sn:%llu] addr=%#x\n",
+                    (*it)->seqNum, (*it)->getSpeculativeAddr());
+            (*it)->setSquashed();
+            // Clear speculative state if needed
+            (*it)->setSpeculative(false);
+        }
+    }
+}
+/* ============== InvisiSpec ends ============== */ 
+
+
 void
 ROB::retireHead(ThreadID tid)
 {
@@ -248,6 +317,13 @@ ROB::retireHead(ThreadID tid)
     DPRINTF(ROB, "[tid:%i] Retiring head instruction, "
             "instruction PC %s, [sn:%llu]\n", tid, head_inst->pcState(),
             head_inst->seqNum);
+
+    /* ============== InvisiSpec starts ============== */ 
+    // Handle speculative loads
+    if (head_inst->isSpeculativeLoad()) {
+        commitSpeculativeLoad(head_inst);
+    }
+    /* ============== InvisiSpec ends ============== */ 
 
     --numInstsInROB;
     --threadEntries[tid];
@@ -482,18 +558,20 @@ ROB::squash(InstSeqNum squash_num, ThreadID tid)
 
     DPRINTF(ROB, "Starting to squash within the ROB.\n");
 
+
+    /* ============== InvisiSpec starts ============== */ 
+    // First squash any speculative loads
+    squashSpeculativeLoads(tid);
+    /* ============== InvisiSpec starts ============== */ 
+
     robStatus[tid] = ROBSquashing;
-
     doneSquashing[tid] = false;
-
     squashedSeqNum[tid] = squash_num;
 
     if (!instList[tid].empty()) {
         InstIt tail_thread = instList[tid].end();
         tail_thread--;
-
         squashIt[tid] = tail_thread;
-
         doSquash(tid);
     }
 }

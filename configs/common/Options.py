@@ -670,6 +670,33 @@ def addCommonOptions(parser, default_isa: Optional[ISA] = None):
         choices=["arm", "thumb", "aarch64"],
         help="ARM instruction set.",
     )
+
+    # ============== InvisiSpec starts ============== 
+    # [InvisiSpec] and add options to configure needsTSO and scheme
+    parser.add_argument(
+        "--scheme", 
+        default=None, 
+        action="store", 
+        type=str,
+        choices=["UnsafeBaseline", "FuturisticSafeFence", "SpectreSafeFence", "FuturisticSafeInvisibleSpec", "SpectreSafeInvisibleSpec"],
+        help="choose baseline or defense designs to evaluate",
+    )
+    # parser.add_argument(
+    #     "--needsTSO", 
+    #     default=None, 
+    #     action="store", 
+    #     type=int,
+    #     help="Select TSO or RC. Set unzero to use TSO."
+    # )
+    parser.add_argument(
+        "--allowSpecBuffHit", 
+        default=None, 
+        action="store",
+        type=int,
+        help="Allow to reuse spec buffer entries. Set unzero to reuse."
+    )
+    # ============== InvisiSpec ends ==============
+
     parser.add_argument(
         "--stats-root",
         action="append",

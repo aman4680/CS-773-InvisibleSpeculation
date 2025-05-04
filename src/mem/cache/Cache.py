@@ -175,12 +175,17 @@ class Cache(BaseCache):
     cxx_header = "mem/cache/cache.hh"
     cxx_class = "gem5::Cache"
 
+    # ============== InvisiSpec starts ==============
+    # Add SLB parameters
+    enable_slb = Param.Bool(False, "Enable Speculative Load Buffer")
+    slb_entries = Param.Unsigned(16, "Number of speculative load buffer entries")
+    # ============== InvisiSpec ends ==============
+
 
 class NoncoherentCache(BaseCache):
     type = "NoncoherentCache"
     cxx_header = "mem/cache/noncoherent_cache.hh"
-    cxx_class = "gem5::NoncoherentCache"
-
+    cxx_class = "gem5::NoncoherentCache" 
     # This is typically a last level cache and any clean
     # writebacks would be unnecessary traffic to the main memory.
     writeback_clean = False

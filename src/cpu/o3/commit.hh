@@ -110,7 +110,10 @@ class Commit
         FetchTrapPending,
         SquashAfterPending, //< Committing instructions before a squash.
     };
-
+  protected:
+    /* ============== InvisiSpec starts ============== */
+    void validateSpeculativeLoad(const DynInstPtr& inst);
+    /* ============== InvisiSpec ends ============== */
   private:
     /** Overall commit status. */
     CommitStatus _status;

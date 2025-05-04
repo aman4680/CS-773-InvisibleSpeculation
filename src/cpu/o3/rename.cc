@@ -528,8 +528,7 @@ Rename::renameInsts(ThreadID tid)
         ++stats.runCycles;
     }
 
-    // Will have to do a different calculation for the number of free
-    // entries.
+    // Will have to do a different calculation for the number of free entries.
     int free_rob_entries = calcFreeROBEntries(tid);
     int free_iq_entries  = calcFreeIQEntries(tid);
     int min_free_entries = free_rob_entries;
@@ -603,6 +602,14 @@ Rename::renameInsts(ThreadID tid)
         assert(!insts_to_rename.empty());
 
         DynInstPtr inst = insts_to_rename.front();
+
+        /* ============== InvisiSpec starts ============== */
+        // Mark loads as speculative based on branch prediction
+        // if (inst->isLoad()) {
+        //     // markSpeculative(inst);
+        //     inst->setSpeculative(true);
+        // }
+        /* ============== InvisiSpec ends ============== */
 
         //For all kind of instructions, check ROB and IQ first For load
         //instruction, check LQ size and take into account the inflight loads

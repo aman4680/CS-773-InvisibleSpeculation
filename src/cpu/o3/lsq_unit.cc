@@ -52,6 +52,7 @@
 #include "debug/IEW.hh"
 #include "debug/LSQUnit.hh"
 #include "debug/O3PipeView.hh"
+#include "debug/InvisiSpec.hh"
 #include "mem/packet.hh"
 #include "mem/request.hh"
 
@@ -335,6 +336,16 @@ LSQUnit::insertLoad(const DynInstPtr &load_inst)
     assert(load_inst->lqIdx > 0);
     load_inst->lqIt = loadQueue.getIterator(load_inst->lqIdx);
 
+
+    /* ============== InvisiSpec starts ============== */
+    // Mark speculative loads
+    if (load_inst->isSpeculativeLoad()) {
+        PacketPtr pkt = loadQueue.back().request()->packet();
+        pkt->setSpeculative(true);
+    }
+    /* ============== InvisiSpec ends ============== */
+
+
     // hardware transactional memory
     // transactional state and nesting depth must be tracked
     // in the in-order part of the core.
@@ -505,6 +516,67 @@ LSQUnit::checkSnoop(PacketPtr pkt)
     }
     return;
 }
+
+
+/* ============== InvisiSpec starts ============== */
+bool
+LSQUnit::validateLoad(const DynInstPtr& inst)
+{
+    assert(inst->isLoad() && "Validating non-load instruction");
+
+    // Get the load queue entry
+    auto lq_entry = inst->lqIt;
+    assert(lq_entry != loadQueue.end());
+    assert(lq_entry->valid());
+    assert(lq_entry->instruction() == inst);
+
+    // Check if this is actually a speculative load
+    if (!inst->isSpeculativeLoad()) {
+        DPRINTF(LSQUnit, "Load [sn:%llu] is not speculative, validation succeeds\n",
+                inst->seqNum);
+            
+        DPRINTF(InvisiSpec, "Validation: [sn:%llu] Non-speculative - auto-pass\n",
+            inst->seqNum);   
+        DPRINTF(InvisiSpec, "Validation PASS: [sn:%llu]\n", inst->seqNum); 
+        return true;
+    }
+
+    DPRINTF(InvisiSpec, "Validating speculative load [sn:%llu] to addr %#x\n",
+        inst->seqNum, inst->physEffAddr);
+
+    DPRINTF(LSQUnit, "Validating speculative load [sn:%llu] to addr %#x\n",
+            inst->seqNum, inst->physEffAddr);
+
+    // Get the request and packet
+    LSQRequest* request = lq_entry->request();
+    assert(request != nullptr);
+    PacketPtr pkt = request->packet();
+    assert(pkt != nullptr);
+
+    // Propagate InvisiSpec metadata
+    request->propagateInvisiSpec(pkt);
+
+    // Check for conflicting stores in the store queue
+    for (auto &store : storeQueue) {
+        if (store.valid() && store.instruction() && 
+            store.instruction()->effAddrValid() &&
+            store.instruction()->effAddr == inst->effAddr) {
+            
+            if (store.instruction()->seqNum > inst->seqNum) {
+                DPRINTF(LSQUnit, "Validation failed: conflict with younger store [sn:%llu]\n", store.instruction()->seqNum);
+                DPRINTF(InvisiSpec, "Validation FAIL: [sn:%llu]\n", inst->seqNum);
+                return false;
+            }
+        }            
+    }
+
+    // If we get here, validation succeeded
+    DPRINTF(LSQUnit, "Validation succeeded for load [sn:%llu]\n", inst->seqNum);
+    DPRINTF(InvisiSpec, "Validation PASS: [sn:%llu]\n", inst->seqNum);
+    return true;
+}
+/* ============== InvisiSpec ends ============== */
+
 
 Fault
 LSQUnit::checkViolations(typename LoadQueue::iterator& loadIt,
@@ -917,6 +989,34 @@ LSQUnit::writebackStores()
     assert(storesToWB >= 0);
 }
 
+
+void
+LSQUnit::squashLoads()
+{
+    DPRINTF(LSQUnit, "Squashing all speculative loads\n");
+
+    while (loadQueue.size() != 0 &&
+           (!loadQueue.back().instruction()->isCommitted())) {
+
+        DynInstPtr inst = loadQueue.back().instruction();
+        DPRINTF(LSQUnit, "Squashing load instruction, PC %s, SeqNum %llu\n",
+                inst->pcState(), inst->seqNum);
+
+        if (isStalled() && loadQueue.tail() == stallingLoadIdx) {
+            stalled = false;
+            stallingStoreIsn = 0;
+            stallingLoadIdx = 0;
+        }
+
+        inst->setSquashed();
+        loadQueue.back().clear();
+        loadQueue.pop_back();
+        ++stats.squashedLoads;
+    }
+}
+
+
+
 void
 LSQUnit::squash(const InstSeqNum &squashed_num)
 {
@@ -1319,6 +1419,32 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
     LQEntry& load_entry = loadQueue[load_idx];
     const DynInstPtr& load_inst = load_entry.instruction();
 
+    
+    /* ============== InvisiSpec starts ============== */
+        if (load_inst->isSpeculativeLoad()) {
+        assert(request->packet() != nullptr);
+        DPRINTF(LSQUnit, "Marking speculative load [sn:%llu] PC %s\n",
+            load_inst->seqNum, load_inst->pcState());
+        
+        // Propagate InvisiSpec metadata to the packet
+        request->propagateInvisiSpec(request->packet());
+        
+        // Check for conflicting stores in the store queue
+        for (auto &store : storeQueue) {
+            if (store.valid() && store.instruction() && 
+                store.instruction()->effAddrValid() &&
+                store.instruction()->effAddr == load_inst->effAddr) {
+                
+                if (store.instruction()->isSpeculativeLoad() && 
+                    store.instruction()->seqNum > load_inst->seqNum) {
+                    panic("Speculative load [sn:%llu] depends on younger speculative store [sn:%llu]",
+                        load_inst->seqNum, store.instruction()->seqNum);
+                }
+            }            
+        }
+    }
+    /* ============== InvisiSpec ends ============== */
+
     load_entry.setRequest(request);
     assert(load_inst);
 
@@ -1603,6 +1729,15 @@ LSQUnit::read(LSQRequest *request, ssize_t load_idx)
 Fault
 LSQUnit::write(LSQRequest *request, uint8_t *data, ssize_t store_idx)
 {
+    /* ============== InvisiSpec starts ============== */
+    if (storeQueue[store_idx].instruction()->isSpeculativeLoad()) {
+        DPRINTF(LSQUnit, "Marking speculative store [sn:%llu] PC %s\n",
+            storeQueue[store_idx].instruction()->seqNum,
+            storeQueue[store_idx].instruction()->pcState());
+        request->packet()->setSpeculative(true);
+    }
+    /* ============== InvisiSpec ends ============== */
+
     assert(storeQueue[store_idx].valid());
 
     DPRINTF(LSQUnit, "Doing write to store idx %i, addr %#x | storeHead:%i "

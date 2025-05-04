@@ -143,13 +143,14 @@ class MemCmd
         FlushReq,      //request for a cache flush
         InvalidateReq,   // request for address to be invalidated
         InvalidateResp,
+
         // hardware transactional memory
         HTMReq,
         HTMReqResp,
         HTMAbort,
         // Tlb shootdown
         TlbiExtSync,
-        NUM_MEM_CMDS
+        NUM_MEM_CMDS,
     };
 
   private:
@@ -177,7 +178,7 @@ class MemCmd
         IsPrint,        //!< Print state matching address (for debugging)
         IsFlush,        //!< Flush the address from caches
         FromCache,      //!< Request originated from a caching agent
-        NUM_COMMAND_ATTRIBUTES
+        NUM_COMMAND_ATTRIBUTES,
     };
 
     static constexpr unsigned long long
@@ -360,7 +361,7 @@ class Packet : public Printable, public Extensible<Packet>
 
         // Signal block present to squash prefetch and cache evict packets
         // through express snoop flag
-        BLOCK_CACHED          = 0x00010000
+        BLOCK_CACHED          = 0x00010000,
     };
 
     Flags flags;
@@ -403,6 +404,15 @@ class Packet : public Printable, public Extensible<Packet>
 
     // Quality of Service priority value
     uint8_t _qosValue;
+
+
+    /* ============== InvisiSpec starts ============== */
+    bool isSpeculative;     // is this a USL (unsafe speculative load) ?
+    bool needsValidation;   // does this packet require validation ?
+    bool isExposed;         // does this packet require exposure ?
+    uint64_t epochId;        // for identifying speculative execution epochs
+    /* ============== InvisiSpec ends ============== */
+
 
     // hardware transactional memory
 
@@ -629,6 +639,25 @@ class Packet : public Printable, public Extensible<Packet>
             getOffset(blk_size) == 0 && getSize() == blk_size &&
             !isMaskedWrite();
     }
+
+
+    /* ============== InvisiSpec starts ============== */
+    PacketId getId() const { return id; }
+
+    void setSpeculative(bool val) { isSpeculative = val; }
+    bool isSpeculativeLoad() const { return isSpeculative; }
+
+    void setValidation(bool val) { needsValidation = val; }
+    bool needsLoadValidation() const { return needsValidation; }
+
+    void setExposure(bool val) { isExposed = val; }
+    bool needsExposure() const { return isExposed; }
+
+    void setEpochId(uint64_t id) { epochId = id; }
+    uint64_t getEpochId() const { return epochId; }
+
+    /* ============== InvisiSpec ends ============== */
+
 
     //@{
     /// Snoop flags
@@ -881,7 +910,11 @@ class Packet : public Printable, public Extensible<Packet>
            htmReturnReason(HtmCacheFailure::NO_FAIL),
            htmTransactionUid(0),
            headerDelay(0), snoopDelay(0),
-           payloadDelay(0), senderState(NULL)
+           payloadDelay(0), senderState(NULL),
+           isSpeculative(false),
+           needsValidation(false),
+           isExposed(false),
+           epochId(0)
     {
         flags.clear();
         if (req->hasPaddr()) {
@@ -922,7 +955,11 @@ class Packet : public Printable, public Extensible<Packet>
            htmReturnReason(HtmCacheFailure::NO_FAIL),
            htmTransactionUid(0),
            headerDelay(0),
-           snoopDelay(0), payloadDelay(0), senderState(NULL)
+           snoopDelay(0), payloadDelay(0), senderState(NULL),
+           isSpeculative(false),
+           needsValidation(false),
+           isExposed(false),
+           epochId(0)
     {
         flags.clear();
         if (req->hasPaddr()) {
@@ -953,7 +990,11 @@ class Packet : public Printable, public Extensible<Packet>
            headerDelay(pkt->headerDelay),
            snoopDelay(0),
            payloadDelay(pkt->payloadDelay),
-           senderState(pkt->senderState)
+           senderState(pkt->senderState),
+           isSpeculative(pkt->isSpeculativeLoad()),
+           needsValidation(pkt->needsLoadValidation()),
+           isExposed(pkt->needsExposure()),
+           epochId(pkt->getEpochId())
     {
         if (!clear_flags)
             flags.set(pkt->flags & COPY_FLAGS);

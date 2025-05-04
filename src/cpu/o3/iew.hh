@@ -126,7 +126,12 @@ class IEW
     ProbePointArg<DynInstPtr> *ppToCommit;
 
   public:
-    /** Constructs a IEW with the given parameters. */
+
+  /* ============== InvisiSpec starts ============== */
+  // void validateSpeculativeLoad(const DynInstPtr& inst); 
+  /* ============== InvisiSpec starts ============== */
+  
+  /** Constructs a IEW with the given parameters. */
     IEW(CPU *_cpu, const BaseO3CPUParams &params);
 
     /** Returns the name of the IEW stage. */

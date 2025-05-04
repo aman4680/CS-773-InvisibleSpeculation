@@ -64,8 +64,10 @@ class ObjectList:
         """Get a sub class from a user provided class name or alias."""
 
         real_name = self._aliases.get(name, name)
+        # print("real name: ", real_name)
         try:
             sub_cls = self._sub_classes[real_name]
+            # print("sub cls: ", sub_cls)
             return sub_cls
         except KeyError:
             print(f"{name} is not a valid sub-class of {self.base_cls}.")

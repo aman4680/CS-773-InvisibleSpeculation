@@ -1,41 +1,4 @@
-# Copyright (c) 2015 Jason Power
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are
-# met: redistributions of source code must retain the above copyright
-# notice, this list of conditions and the following disclaimer;
-# redistributions in binary form must reproduce the above copyright
-# notice, this list of conditions and the following disclaimer in the
-# documentation and/or other materials provided with the distribution;
-# neither the name of the copyright holders nor the names of its
-# contributors may be used to endorse or promote products derived from
-# this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-# "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-# LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-# A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-# OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-# SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-# LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-""" This file creates a single CPU and a two-level cache system.
-This script takes a single parameter which specifies a binary to execute.
-If none is provided it executes 'hello' by default (mostly used for testing)
-
-See Part 1, Chapter 3: Adding cache to the configuration script in the
-learning_gem5 book for more information about this script.
-This file exports options for the L1 I/D and L2 cache sizes.
-
-IMPORTANT: If you modify this file, it's likely that the Learning gem5 book
-           also needs to be updated. For now, email Jason <power.jg@gmail.com>
-
-"""
+import argparse
 
 # import the m5 (gem5) library created when gem5 is built
 import m5
@@ -50,7 +13,11 @@ m5.util.addToPath("../../")
 from caches import *
 
 # import the SimpleOpts module
+from common import Options
 from common import SimpleOpts
+from common import CpuConfig
+from common import Simulation
+from common import ObjectList
 
 # Default to running 'hello', use the compiled ISA to find the binary
 # grab the specific path to the binary
@@ -58,16 +25,27 @@ thispath = os.path.dirname(os.path.realpath(__file__))
 default_binary = os.path.join(
     thispath,
     "../../../",
+    # "tests/test-progs/hello/bin/x86/linux/hello",
     "Spectre_variant_1/spectre_attack_binary",
 )
 # "tests/test-progs/hello/bin/x86/linux/hello"
 # "Spectre_variant_1/spectre_attack_binary",
 
 # Binary to execute
-SimpleOpts.add_option("binary", nargs="?", default=default_binary)
-
+# SimpleOpts.add_option("binary", nargs="?", default=default_binary)
+# SimpleOpts.add_option("--scheme", help=f"")
 # Finalize the arguments and grab the args so we can pass it on to our objects
-args = SimpleOpts.parse_args()
+# options = SimpleOpts.parse_args()
+
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("binary", default=default_binary, nargs="?", type=str, help="Path to the binary to execute.")
+# Options.addCommonOptions(parser)
+# Options.addSEOptions(parser)
+# print("Before")
+options = parser.parse_args()
+# print("After")
 
 # create the system we are going to simulate
 system = System()
@@ -82,11 +60,23 @@ system.mem_mode = "timing"  # Use timing accesses
 system.mem_ranges = [AddrRange("512MiB")]  # Create an address range
 
 # Create a simple CPU
+# print(ObjectList.cpu_list.get_names())  # Lists all available CPUs
 system.cpu = DerivO3CPU(branchPred=LTAGE())
 
+# ============== InvisiSpec starts ==============
+# (CPUClass, test_mem_mode, FutureClass) = Simulation.setCPUClass(options)
+# (CPUClass, test_mem_mode) = Simulation.getCPUClass("DerivO3CPU")
+# CPUClass = system.cpu
+# CPUClass.numThreads = 1
+# print("CPUClass: ", CPUClass)
+# ============== InvisiSpec ends ==============
+
 # Create an L1 instruction and data cache
-system.cpu.icache = L1ICache(args)
-system.cpu.dcache = L1DCache(args)
+# system.cpu.icache = L1ICache(options)
+# system.cpu.dcache = L1DCache(options)
+
+system.cpu.icache = L1ICache()
+system.cpu.dcache = L1DCache()
 
 # Connect the instruction and data caches to the CPU
 system.cpu.icache.connectCPU(system.cpu)
@@ -100,7 +90,8 @@ system.cpu.icache.connectBus(system.l2bus)
 system.cpu.dcache.connectBus(system.l2bus)
 
 # Create an L2 cache and connect it to the l2bus
-system.l2cache = L2Cache(args)
+# system.l2cache = L2Cache(options)
+system.l2cache = L2Cache()
 system.l2cache.connectCPUSideBus(system.l2bus)
 
 # Create a memory bus
@@ -124,16 +115,30 @@ system.mem_ctrl.dram = DDR3_1600_8x8()
 system.mem_ctrl.dram.range = system.mem_ranges[0]
 system.mem_ctrl.port = system.membus.mem_side_ports
 
-system.workload = SEWorkload.init_compatible(args.binary)
+system.workload = SEWorkload.init_compatible(options.binary)
 
 # Create a process for a simple "Hello World" application
 process = Process()
 # Set the command
 # cmd is a list which begins with the executable (like argv)
-process.cmd = [args.binary]
+process.cmd = [options.binary]
 # Set the cpu to use the process as its workload and create thread contexts
 system.cpu.workload = process
 system.cpu.createThreads()
+
+print(f"CPU Type: {type(system.cpu)}")
+# print(f"CPU Class: {type(CPUClass)}")
+
+# print(issubclass(X86O3CPU, DerivO3CPU))  # Will print True if X86O3CPU is a subclass of DerivO3CPU
+# print(X86O3CPU.__mro__)  # This shows the class hierarchy for X86O3CPU
+# print(DerivO3CPU.__mro__)  # This shows the class hierarchy for DerivO3CPU
+
+
+# [InvisiSpec] Configure simulation scheme
+# if isinstance(CPUClass, DerivO3CPU):
+#     print("Inside Equality, CPUClass == DerivO3CPU : ", CPUClass)
+#     CpuConfig.config_scheme(type(CPUClass), system.cpu, options)
+
 
 # set up the root SimObject and start the simulation
 root = Root(full_system=False, system=system)

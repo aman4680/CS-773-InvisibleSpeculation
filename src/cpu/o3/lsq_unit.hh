@@ -271,6 +271,8 @@ class LSQUnit
     /** Commits loads older than a specific sequence number. */
     void commitLoads(InstSeqNum &youngest_inst);
 
+    void squashLoads();
+
     /** Commits stores older than a specific sequence number. */
     void commitStores(InstSeqNum &youngest_inst);
 
@@ -505,6 +507,16 @@ class LSQUnit
     /** Flag for memory model. */
     bool needsTSO;
 
+    /* ============== InvisiSpec starts ============== */
+    // Flag for whether issue packets in execution stage
+    bool loadInExec;
+    // Flag for whether to use invisible speculative load
+    bool isInvisibleSpec;   
+    // Flag for whether defending against spectre attack or future attacks
+    bool isFuturistic;
+    bool allowSpecBuffHit;
+    /* ============== InvisiSpec ends ============== */
+
   protected:
     // Will also need how many read/write ports the Dcache has.  Or keep track
     // of that in stage that is one level up, and only call executeLoad/Store
@@ -557,6 +569,11 @@ class LSQUnit
     int getStoreHead() { return storeQueue.head(); }
     /** Returns the sequence number of the head store instruction. */
     InstSeqNum getStoreHeadSeqNum();
+
+    /* ============== InvisiSpec starts ============== */
+    bool validateLoad(const DynInstPtr& inst);
+    /* ============== InvisiSpec ends ============== */
+
 
     /** Returns whether or not the LSQ unit is stalled. */
     bool isStalled()  { return stalled; }

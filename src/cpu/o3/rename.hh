@@ -198,6 +198,11 @@ class Rename
     /** Debugging function used to dump history buffer of renamings. */
     void dumpHistory();
 
+   /* ============== InvisiSpec starts ============== */ 
+  // protected:
+    // void markSpeculative(DynInstPtr &inst);
+    /* ============== InvisiSpec ends ============== */
+
   private:
     /** Reset this pipeline stage */
     void resetStage();

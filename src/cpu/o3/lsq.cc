@@ -249,6 +249,56 @@ LSQ::executeStore(const DynInstPtr &inst)
     return thread[tid].executeStore(inst);
 }
 
+
+/* ============== InvisiSpec starts ============== */
+bool
+LSQ::validateLoad(const DynInstPtr& inst)
+{
+    ThreadID tid = inst->threadNumber;
+    
+    // Delegate the validation to the appropriate thread's LSQ unit
+    bool valid = thread[tid].validateLoad(inst);
+    
+    DPRINTF(IEW, "[tid:%i] Load validation %s [sn:%llu] to addr %#x\n",
+            tid, valid ? "succeeded" : "failed", inst->seqNum, inst->physEffAddr);
+            
+    return valid;
+}
+
+void
+LSQ::commitLoad(Addr addr)
+{
+    // Forward commit to all thread LSQ units
+    for (ThreadID tid = 0; tid < numThreads; tid++) {
+        thread[tid].commitLoad();
+    }
+    
+    // Uncomment these lines if you are implementing sendCommitSpeculativeLoad() method in this following class [class DcachePort : public RequestPort]
+    // Create a request and packet to communicate with cache
+    // RequestPtr req = std::make_shared<Request>(
+    //     addr, 0, 0, Request::funcMasterId);
+    // PacketPtr pkt = new Packet(req, MemCmd::ReadReq);
+    
+    // // Send through the dcachePort
+    // dcachePort.sendCommitSpeculativeLoad(pkt);
+}
+
+void
+LSQ::squashLoads()
+{
+    // Forward squash to all thread LSQ units
+    for (ThreadID tid = 0; tid < numThreads; tid++) {
+        thread[tid].squashLoads();
+    }
+    
+    // Uncomment these lines if you are implementing sendSquashSpeculativeLoads() method in this following class [class DcachePort : public RequestPort]
+    // Send squash command through dcachePort
+    // dcachePort.sendSquashSpeculativeLoads();
+}
+
+/* ============== InvisiSpec ends ============== */
+
+
 void
 LSQ::commitLoads(InstSeqNum &youngest_inst, ThreadID tid)
 {
@@ -759,6 +809,18 @@ LSQ::willWB(ThreadID tid)
 {
     return thread.at(tid).willWB();
 }
+
+/* ============== InvisiSpec starts ============== */
+void 
+LSQ::LSQRequest::propagateInvisiSpec(PacketPtr pkt) {
+    if (_inst && _inst->isLoad()) {
+        pkt->setSpeculative(_inst->isSpeculativeLoad());
+        pkt->setValidation(_inst->requiresValidation());
+        pkt->setExposure(_inst->requiresExposure());
+        pkt->setEpochId(_inst->getEpochId());
+    }
+}
+/* ============== InvisiSpec ends ============== */
 
 void
 LSQ::dumpInsts() const

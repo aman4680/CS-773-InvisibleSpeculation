@@ -47,6 +47,37 @@ isa_string_map = {
     ISA.MIPS: "Mips",
 }
 
+# [InvisiSpec] add knob to configure the CPU modes/simulation schemes
+def config_scheme(cpu_cls, cpu_list, options):
+    if issubclass(cpu_cls, m5.objects.DerivO3CPU):
+        # Assign the same file name to all cpus for now.
+        # if options.needsTSO==None or options.scheme==None:
+        if options.scheme==None:
+            fatal("Need to provide scheme "
+                "to run simulation with DerivO3CPU")
+
+        print("**********")
+        # print "info: Configure for DerivO3CPU. needsTSO=%d; scheme=%s"\
+            # % (options.needsTSO, options.scheme)
+        print("info: Configure for DerivO3CPU. scheme=%s"\
+            % (options.scheme))
+        print("**********")
+        for cpu in cpu_list:
+            # if options.needsTSO:
+            #     cpu.needsTSO = True
+            # else:
+            #     cpu.needsTSO = False
+            print(cpu)
+            if options.allowSpecBuffHit:
+                cpu.allowSpecBuffHit = True
+            else:
+                cpu.allowSpecBuffHit = False
+            if len(options.scheme)!=0:
+                cpu.simulateScheme = options.scheme
+    else:
+        print("not DerivO3CPU")
+# ============== InvisiSpec ends ==============
+
 
 def config_etrace(cpu_cls, cpu_list, options):
     if issubclass(cpu_cls, m5.objects.DerivO3CPU):

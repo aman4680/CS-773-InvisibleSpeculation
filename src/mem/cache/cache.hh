@@ -48,11 +48,13 @@
 
 #include <cstdint>
 #include <unordered_set>
+#include <cstring>
 
 #include "base/compiler.hh"
 #include "base/types.hh"
 #include "mem/cache/base.hh"
 #include "mem/packet.hh"
+#include "debug/InvisiSpec.hh"
 
 namespace gem5
 {
@@ -78,6 +80,66 @@ class Cache : public BaseCache
      * generated and which ones were merely forwarded.
      */
     std::unordered_set<RequestPtr> outstandingSnoop;
+
+
+    /* ============== InvisiSpec starts ============== */
+
+    // Add SLB enable parameter
+    const bool enableSLB;
+    /**
+     * Speculative Load Buffer (SLB) implementation for InvisiSpec
+     */
+    struct SpeculativeLoadEntry {
+      Addr addr;
+      uint8_t* data;
+      unsigned size;
+      bool valid;
+      RequestPtr req;
+      PacketId id;
+      Tick accessTime;
+      InstSeqNum seqNum;
+      
+      // Constructor from packet
+      SpeculativeLoadEntry(PacketPtr pkt)
+        : addr(pkt->getAddr()),
+          size(pkt->getSize()),
+          valid(true),
+          req(pkt->req),
+          id(pkt->getId()),
+          accessTime(curTick() + 2),
+          seqNum(pkt->req->hasContextId() ? pkt->req->contextId() : 0)
+      {
+          data = new uint8_t[size];
+          std::memcpy(data, pkt->getPtr<uint8_t>(), size);
+      }
+      
+      // Constructor from individual components (remove or fix this if not needed)
+      // SpeculativeLoadEntry(Addr _addr, unsigned _size, 
+      //                    const RequestPtr& _req, PacketId _id)
+      //   : addr(_addr),
+      //     size(_size),
+      //     valid(true),
+      //     req(_req),
+      //     id(_id),
+      //     accessTime(curTick() + 2),
+      //     seqNum(_req->hasContextId() ? _req->contextId() : 0)
+      // {
+      //     data = new uint8_t[size]();
+      // }
+      
+      ~SpeculativeLoadEntry() {
+          delete[] data;
+      }
+      
+      void print(std::ostream &os) const {
+          os << "[sn:" << seqNum << "] addr:" << addr << " size:" << size;
+      }
+  };   
+
+    std::list<SpeculativeLoadEntry> slb;
+    unsigned slbSize;       // Maximum SLB entries
+
+    /* ============== InvisiSpec ends ============== */
 
   protected:
     /**
@@ -160,6 +222,28 @@ class Cache : public BaseCache
   public:
     /** Instantiates a basic cache object. */
     Cache(const CacheParams &p);
+
+
+    /* ============== InvisiSpec starts ============== */
+    /**
+     * Commit a speculative load to the actual cache hierarchy
+     * @param addr The address to commit
+     */
+    void commitSpeculativeLoad(Addr addr);
+
+    /**
+     * Squash all speculative loads in the SLB
+     */
+    void squashSpeculativeLoads();
+
+    /**
+     * Insert a new speculative load into the SLB
+     * @param pkt The packet containing the speculative load
+     */
+    void insertSpeculativeLoad(PacketPtr pkt);
+    /* ============== InvisiSpec ends ============== */
+
+
 
     /**
      * Take an MSHR, turn it into a suitable downstream packet, and

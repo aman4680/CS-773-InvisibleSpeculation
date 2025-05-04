@@ -92,6 +92,28 @@ class LSQ
         /** Default constructor. */
         DcachePort(LSQ *_lsq, CPU *_cpu);
 
+
+        /* ============== InvisiSpec starts ============== */
+        /**
+         * Notify cache to commit a speculative load
+         */
+        // void sendCommitSpeculativeLoad(PacketPtr pkt) {
+        //     // Convert to a timing request if needed
+        //     sendTimingReq(pkt);
+        // }
+        
+        /**
+         * Notify cache to squash all speculative loads
+         */
+        // void sendSquashSpeculativeLoads() {
+        //     // May need to create a special packet for this
+        //     RequestPtr req = std::make_shared<Request>();
+        //     PacketPtr pkt = new Packet(req, MemCmd::SquashSpeculativeLoads);
+        //     sendTimingReq(pkt);
+        // }
+        /* ============== InvisiSpec ends ============== */
+        
+
       protected:
 
         /** Timing version of receive.  Handles writing back and
@@ -336,6 +358,12 @@ class LSQ
         bool hasStaleTranslation() const { return _hasStaleTranslation; }
 
         virtual void markAsStaleTranslation() = 0;
+
+
+        /* ============== InvisiSpec starts ============== */
+        void propagateInvisiSpec(PacketPtr pkt) ;
+        /* ============== InvisiSpec ends ============== */
+
 
         /** Set up virtual request.
          * For a previously allocated Request objects.
@@ -692,6 +720,22 @@ class LSQ
 
     /** Executes a store. */
     Fault executeStore(const DynInstPtr &inst);
+
+
+    /* ============== InvisiSpec starts ============== */
+    /**
+     * Commit a speculative load - moves it from speculative to non-speculative
+     * @param addr The address of the load to commit
+     */
+    void commitLoad(Addr addr);
+
+    /**
+     * Squash all speculative loads - discard them on branch misprediction
+     */
+    void squashLoads();
+    bool validateLoad(const DynInstPtr& inst);
+    /* ============== InvisiSpec ends ============== */
+
 
     /**
      * Commits loads up until the given sequence number for a specific thread.

@@ -56,6 +56,7 @@ addToPath("../common")
 
 def getCPUClass(cpu_type):
     """Returns the required cpu class and the mode of operation."""
+    # print("Inside: ", cpu_type)
     cls = ObjectList.cpu_list.get(cpu_type)
     return cls, cls.memory_mode()
 

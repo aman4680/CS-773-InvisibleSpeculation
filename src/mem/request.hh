@@ -157,6 +157,14 @@ class Request : public Extensible<Request>
         /** This request is for a memory swap. */
         MEM_SWAP                    = 0x00400000,
         MEM_SWAP_COND               = 0x00800000,
+
+
+        /* ============== InvisiSpec starts ============== */
+        /** [InvisiSpec] it is a spec request */
+        SPEC                        = 0x00004000,
+        /* ============== InvisiSpec ends ============== */
+
+
         /** This request is a read which will be followed by a write. */
         READ_MODIFY_WRITE           = 0x0020000000000000,
 

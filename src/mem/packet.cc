@@ -237,6 +237,27 @@ MemCmd::commandInfo[] =
     { {IsRead, IsResponse}, InvalidCmd, "HTMReqResp" },
     { {IsRead, IsRequest}, InvalidCmd, "HTMAbort" },
     { {IsRequest}, InvalidCmd, "TlbiExtSync" },
+
+
+    /* ============== InvisiSpec starts ============== */
+    /* [InvisiSpec] New command info */
+    // { {IsRead, IsRequest, NeedsResponse, IsSpec},
+    //     ReadSpecResp, "ReadSpecReq" },
+    //   { {IsRead, IsResponse, HasData, IsSpec},
+    //     InvalidCmd, "ReadSpecResp" },
+    //   { {IsRead, IsRequest, NeedsResponse, IsValidate},
+    //     ValidateResp, "ValidateReq" },
+    //   { {IsRead, IsResponse, HasData, IsValidate},
+    //     InvalidCmd, "ValidateResp" },
+    //   { {IsRead, IsRequest, NeedsResponse, IsExpose},
+    //     ExposeResp, "ExposeReq" },
+    //   { {IsRead, IsResponse, IsExpose},
+    //     InvalidCmd, "ExposeResp" },
+    //   { {IsRequest, NeedsResponse, IsSpecFlush},
+    //     SpecFlushResp, "SpecFlushReq" },
+    //   { {IsResponse, IsSpecFlush},
+    //     InvalidCmd, "SpecFlushResp" }
+    /* ============== InvisiSpec ends ============== */
 };
 
 AddrRange

@@ -1093,6 +1093,33 @@ IEW::printAvailableInsts()
     std::cout << "\n";
 }
 
+/* ============== InvisiSpec starts ============== */
+// void
+// IEW::validateSpeculativeLoad(const DynInstPtr& inst)
+// {
+//     ThreadID tid = inst->threadNumber;
+//     Addr load_addr = inst->physEffAddr;
+    
+//     DPRINTF(IEW, "[tid:%i] Validating speculative load [sn:%llu] to addr %#x\n",
+//             tid, inst->seqNum, load_addr);
+            
+//     // Send validation request to LSQ/cache hierarchy
+//     bool valid = ldstQueue.validateLoad(inst);
+    
+//     if (valid) {
+//         inst->markValidation(false);
+//         // If validation passed, the load can commit normally
+//         DPRINTF(IEW, "[tid:%i] Load validation succeeded [sn:%llu]\n",
+//                 tid, inst->seqNum);
+//     } else {
+//         // If validation failed, we need to squash
+//         DPRINTF(IEW, "[tid:%i] Load validation failed [sn:%llu], squashing\n",
+//                 tid, inst->seqNum);
+//         squashDueToMemOrder(inst, tid);
+//     }
+// }
+/* ============== InvisiSpec ends ============== */
+
 void
 IEW::executeInsts()
 {
@@ -1174,6 +1201,31 @@ IEW::executeInsts()
                 // Loads will mark themselves as executed, and their writeback
                 // event adds the instruction to the queue to commit
                 fault = ldstQueue.executeLoad(inst);
+
+                /* ============== InvisiSpec starts ============== */
+                // if (inst->isSpeculativeLoad()) {
+                //     DPRINTF(IEW, "[sn:%llu] Execute: Speculative load, "
+                //             "special handling. Addr: %#x\n",
+                //             inst->seqNum, inst->physEffAddr);
+                    
+                    // For speculative loads, we still want to execute them through
+                    // the LSQ but mark them appropriately
+                    // inst->setExecuted();
+                    // fault = ldstQueue.executeLoad(inst);
+                    
+                    // if (fault == NoFault) {
+                    //     // Mark as needing validation if required
+                    //     if (!inst->requiresValidation()) {
+                    //         inst->markValidation(true);
+                    //         // inst->set
+                    //     }
+                    //     instToCommit(inst);
+                    // }
+                // } else {
+                //     // Normal load processing
+                //     fault = ldstQueue.executeLoad(inst);
+                // }
+                /* ============== InvisiSpec ends ============== */
 
                 if (inst->isTranslationDelayed() &&
                     fault == NoFault) {
@@ -1285,6 +1337,13 @@ IEW::executeInsts()
                 // clears the violation signal.
                 DynInstPtr violator;
                 violator = ldstQueue.getMemDepViolator(tid);
+                    /* ============== InvisiSpec starts ============== */
+    // Skip violation check if either instruction is speculative
+    // if (inst->isSpeculativeLoad() || violator->isSpeculativeLoad()) {
+    //     DPRINTF(IEW, "Ignoring violation involving speculative load\n");
+    //     continue;
+    // }
+    /* ============== InvisiSpec ends ============== */
 
                 DPRINTF(IEW, "LDSTQ detected a violation. Violator PC: %s "
                         "[sn:%lli], inst PC: %s [sn:%lli]. Addr is: %#x.\n",

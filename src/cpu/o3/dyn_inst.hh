@@ -78,6 +78,15 @@ class DynInst : public ExecContext, public RefCounted
     DynInst(const StaticInstPtr &staticInst, const StaticInstPtr &macroop,
             InstSeqNum seq_num, CPU *cpu);
 
+
+    /* ============== InvisiSpec starts ============== */
+    bool _isSpeculative;
+    bool _needsValidation;
+    bool _needsExposure;
+    Addr _speculativeAddr;
+    uint64_t _epochId;
+    /* ============== InvisiSpec ends ============== */
+
   public:
     // The list of instructions iterator type.
     typedef typename std::list<DynInstPtr>::iterator ListIt;
@@ -375,6 +384,33 @@ class DynInst : public ExecContext, public RefCounted
     /** Is the effective virtual address valid. */
     bool effAddrValid() const { return instFlags[EffAddrValid]; }
     void effAddrValid(bool b) { instFlags[EffAddrValid] = b; }
+
+
+    /* ============== InvisiSpec starts ============== */
+    bool isSpeculativeLoad() const { return _isSpeculative; }
+    void setSpeculative(bool val) { _isSpeculative = val; }    
+
+    bool requiresValidation() const { return _needsValidation; }
+    void markValidation(bool val) { _needsValidation = val; }
+
+    bool requiresExposure() const { return _needsExposure; }
+    void markExposure(bool val) { _needsExposure = val; }
+
+    uint64_t getEpochId() const { return _epochId; }
+    void setEpochId(uint64_t id) { _epochId = id; }
+
+    Addr getSpeculativeAddr() const { return _speculativeAddr; }
+    void setSpeculativeAddr(Addr val) { _speculativeAddr = val; }
+
+    void clearSpeculativeState() {
+        _isSpeculative = false;
+        _needsValidation = false;
+        _needsExposure = false;
+        _speculativeAddr = 0;
+        // Keep epoch ID as it might be needed for tracking
+    }
+    /* ============== InvisiSpec ends ============== */
+
 
     /** Whether or not the memory operation is done. */
     bool memOpDone() const { return instFlags[MemOpDone]; }
